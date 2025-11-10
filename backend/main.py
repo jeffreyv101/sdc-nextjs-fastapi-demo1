@@ -72,10 +72,22 @@ def read_root():
 
 @app.get("/api/posts")
 def get_posts():
-    return {"To be implemented"}
+    """Get all blog posts"""
+    return {"posts": posts}
 
 
 @app.get("/api/posts/{slug}")
 def get_post(slug: str):
-    return {"To be implemented": slug}
+    """Get a single blog post by slug"""
+    post = None
+
+    for p in posts:
+        if p["slug"] == slug:
+            post = p
+            break
+    
+    if post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    return post
 
