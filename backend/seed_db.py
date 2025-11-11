@@ -66,19 +66,6 @@ def seed_database():
             post = Post(**post_data)
             db.add(post)
         
-        # Sample AI chat messages
-        messages_data = [
-            {"role": "user", "content": "Hello, who are you?"},
-            {"role": "assistant", "content": "I am an AI assistant. How can I help you today?"},
-            {"role": "user", "content": "Can you tell me a joke?"},
-            {"role": "assistant", "content": "Why did the scarecrow win an award? Because he was outstanding in his field!"}
-        ]
-        
-        # Create chat messages
-        for message_data in messages_data:
-            message = ChatMessage(**message_data)
-            db.add(message)
-        
         db.commit()
         print("Database seeded successfully!")
         
