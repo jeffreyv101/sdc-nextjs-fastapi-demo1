@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import get_db, create_tables, Post, ChatMessage
 from seed_db import seed_database
+from ollama_service import ollama_service
 
 app = FastAPI()
 
@@ -71,21 +72,57 @@ def get_ai_chat_messages(db: Session = Depends(get_db)):
     ]}
 
 @app.post("/api/ai-chat/message")
-def post_ai_chat_message(message: dict, db: Session = Depends(get_db)):
-    """Receive a message from the user and return a sample AI response"""
-    user_message = message.get("content", "")
+async def post_ai_chat_message(message: dict, db: Session = Depends(get_db)):
+    """Receive a message from the user and return an AI response from Ollama"""
+
+    messages = db.query(ChatMessage).order_by(ChatMessage.created_at).all()
+
+    # Build a text history from past messages and append the current user content
+    history = " ".join([f"{m.role}: {m.content}" for m in messages])
+    user_message = "You are a sassy teenager. " + (history + " " if history else "") + message.get("content", "")
+    
+    if not user_message.strip():
+        raise HTTPException(status_code=400, detail="Message content cannot be empty")
     
     # Save user message to database
     user_msg = ChatMessage(role="user", content=user_message)
     db.add(user_msg)
+    db.flush()  # Flush to get the ID but don't commit yet
     
-    # In a real application, you would process the user message and generate a response
-    ai_response_content = f"You said: {user_message}. This is a sample response from the AI."
-    
-    # Save AI response to database
-    ai_msg = ChatMessage(role="assistant", content=ai_response_content)
-    db.add(ai_msg)
-    
-    db.commit()
-    
-    return {"role": "assistant", "content": ai_response_content}
+    try:
+        # Generate AI response using Ollama
+        ai_response_content = await ollama_service.generate_response(user_message)
+        
+        # If Ollama is not available, fall back to a default response
+        if ai_response_content is None:
+            ai_response_content = "Sorry, I'm currently unavailable. Please make sure Ollama is running and try again."
+        
+        # Save AI response to database
+        ai_msg = ChatMessage(role="assistant", content=ai_response_content)
+        db.add(ai_msg)
+        
+        # Commit both messages
+        db.commit()
+        
+        return {"role": "assistant", "content": ai_response_content}
+        
+    except Exception as e:
+        # Rollback in case of error
+        db.rollback()
+        print(f"Error generating AI response: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate AI response")
+
+@app.get("/api/ollama/models")
+async def get_ollama_models():
+    """Get list of available Ollama models"""
+    try:
+        models = await ollama_service.list_models()
+        return {"models": models}
+    except Exception as e:
+        print(f"Error fetching Ollama models: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch available models")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources on app shutdown"""
+    await ollama_service.close()
