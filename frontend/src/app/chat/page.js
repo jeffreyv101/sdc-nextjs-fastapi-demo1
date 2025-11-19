@@ -48,6 +48,7 @@ export default function ChatPage() {
     const [loading, setLoading] = useState(true);
     const [inputMessage, setInputMessage] = useState("");
     const [sending, setSending] = useState(false);
+    const [loadingDots, setLoadingDots] = useState("");
 
     useEffect(() => {
         async function fetchMessages() {
@@ -64,6 +65,18 @@ export default function ChatPage() {
 
         fetchMessages();
     }, []);
+
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            if (loadingDots.length >= 3){
+                setLoadingDots("")
+            } else{
+                setLoadingDots((prevState) => (prevState + "."));
+            }
+        }, 500); // Adjust speed (milliseconds)
+
+        return () => clearInterval(intervalId); // Cleanup on unmount
+    }, [loadingDots]);
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
@@ -113,6 +126,7 @@ export default function ChatPage() {
                             </div>
                         ))
                     )}
+                    {sending && <div className="flex items-center justify-center space-x-2 text-gray-600">Thinking{loadingDots}</div>}
 
                     {/* Input field */}
                     <form onSubmit={handleSendMessage} className="mt-4">
